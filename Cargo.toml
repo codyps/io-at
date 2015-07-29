@@ -8,8 +8,9 @@ description = "Traits and wapper type implimenting Read and Write with offsets"
 keywords = [ "io", "offset", "at" ]
 
 [dependencies]
-nix = "*"
 libc = "*"
+# only needed on unix, but cargo doesn't have a way for us to say that
+nix = "*"
 
 [dev-dependencies]
 tempfile = "*"
