@@ -1,0 +1,15 @@
+[package]
+name = "io-at"
+version = "0.1.0"
+authors = ["Cody P Schafer <dev@codyps.com>"]
+license = "MIT"
+repository = "https://github.com/jmesmon/io-at"
+description = "Traits and wapper type implimenting Read and Write with offsets"
+keywords = [ "io", "offset", "at" ]
+
+[dependencies]
+nix = "*"
+libc = "*"
+
+[dev-dependencies]
+tempfile = "*"
