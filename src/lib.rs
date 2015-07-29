@@ -7,12 +7,75 @@ extern crate tempfile;
 
 pub use std::io::Result;
 
+use std::sync::Mutex;
+use std::io::{SeekFrom, Seek, Read, Write};
+
 pub trait ReadAt {
     fn read_at(&self, buf: &mut[u8], offs: u64) -> Result<usize>;
 }
 
 pub trait WriteAt {
     fn write_at(&self, buf: &[u8], offs: u64) -> Result<usize>;
+}
+
+pub struct LockedSeek<T: Seek> {
+    inner: Mutex<T>,
+}
+
+impl<T: Seek> LockedSeek<T> {
+    pub fn new(v: T) -> LockedSeek<T> {
+        LockedSeek { inner: Mutex::new(v) }
+    }
+}
+
+impl<T: Seek + Read> ReadAt for LockedSeek<T> {
+    fn read_at(&self, buf: &mut[u8], offs: u64) -> Result<usize> {
+        let mut f = self.inner.lock().unwrap();
+        try!(f.seek(SeekFrom::Start(offs)));
+        f.read(buf)
+    }
+}
+
+impl<T: Seek + Write> WriteAt for LockedSeek<T> {
+    fn write_at(&self, buf: &[u8], offs: u64) -> Result<usize> {
+        let mut f = self.inner.lock().unwrap();
+        try!(f.seek(SeekFrom::Start(offs)));
+        f.write(buf)
+    }
+}
+
+#[test]
+fn do_t_locked_seek() {
+    use tempfile;
+    let f = tempfile::TempFile::new().unwrap();
+    let at = LockedSeek::new(f);
+    test_impl(at);
+}
+
+#[cfg(test)]
+fn test_impl<T: ReadAt + WriteAt>(at: T) {
+    let x = [1u8, 4, 9, 5];
+
+    /* write at start */
+    assert_eq!(at.write_at(&x, 0).unwrap(), 4);
+    let mut res = [0u8; 4];
+
+    /* read at start */
+    assert_eq!(at.read_at(&mut res, 0).unwrap(), 4);
+    assert_eq!(&res, &x);
+
+    /* read at middle */
+    assert_eq!(at.read_at(&mut res, 1).unwrap(), 3);
+    assert_eq!(&res[..3], &x[1..]);
+
+    /* write at middle */
+    assert_eq!(at.write_at(&x, 1).unwrap(), 4);
+
+    assert_eq!(at.read_at(&mut res, 0).unwrap(), 4);
+    assert_eq!(&res, &[1u8, 1, 4, 9]);
+
+    assert_eq!(at.read_at(&mut res, 4).unwrap(), 1);
+    assert_eq!(&res[..1], &[5u8]);
 }
 
 pub mod os {
@@ -59,33 +122,11 @@ pub mod os {
         }
 
         #[test]
-        fn t_wr_at() {
+        fn do_t() {
             use tempfile;
             let f = tempfile::TempFile::new().unwrap();
             let at = IoAtRaw(f);
-
-            let x = [1u8, 4, 9, 5];
-
-            /* write at start */
-            assert_eq!(at.write_at(&x, 0).unwrap(), 4);
-            let mut res = [0u8; 4];
-
-            /* read at start */
-            assert_eq!(at.read_at(&mut res, 0).unwrap(), 4);
-            assert_eq!(&res, &x);
-
-            /* read at middle */
-            assert_eq!(at.read_at(&mut res, 1).unwrap(), 3);
-            assert_eq!(&res[..3], &x[1..]);
-
-            /* write at middle */
-            assert_eq!(at.write_at(&x, 1).unwrap(), 4);
-
-            assert_eq!(at.read_at(&mut res, 0).unwrap(), 4);
-            assert_eq!(&res, &[1u8, 1, 4, 9]);
-
-            assert_eq!(at.read_at(&mut res, 4).unwrap(), 1);
-            assert_eq!(&res[..1], &[5u8]);
+            super::super::test_impl(at);
         }
     }
 }
