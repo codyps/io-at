@@ -7,6 +7,7 @@ extern crate tempfile;
 
 pub use std::io::Result;
 
+use std::ops::{Deref, DerefMut};
 use std::convert::From;
 use std::sync::Mutex;
 use std::io::{SeekFrom, Seek, Read, Write};
@@ -17,7 +18,80 @@ pub trait ReadAt {
 
 pub trait WriteAt {
     fn write_at(&self, buf: &[u8], offs: u64) -> Result<usize>;
+
+    /* XXX: this impl is very similar to Write::write_all, is there some way to generalize? */
+    fn write_all_at(&self, mut buf: &[u8], mut offs: u64) -> Result<()> {
+        use std::io::{Error, ErrorKind};
+        while !buf.is_empty() {
+            match self.write_at(buf, offs) {
+                Ok(0) => return Err(Error::new(ErrorKind::WriteZero,
+                                               "failed to write whole buffer")),
+                Ok(n) => {
+                    buf = &buf[n..];
+                    offs += n as u64;
+                },
+                Err(ref e) if e.kind() == ErrorKind::Interrupted => {}
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
 }
+
+
+/*
+ * Adaptors:
+ */
+/*
+pub struct<T: WriteAt> RateLimitWrite<T> {
+    ts : u64;
+    bytes_per_sec : u64;
+    inner: T;
+}
+
+pub struct<T> Take<T> {
+    max_offs: u64;
+    inner: T;
+}
+
+*/
+
+pub struct BlockLimitWrite<T: WriteAt> {
+    max_per_block: usize,
+    inner: T,
+}
+
+impl<T: WriteAt> BlockLimitWrite<T> {
+    pub fn new(v: T, max_per_block: usize) -> Self {
+        BlockLimitWrite { max_per_block: max_per_block, inner: v }
+    }
+}
+
+impl<T: WriteAt + ReadAt> ReadAt for BlockLimitWrite<T> {
+    fn read_at(&self, buf: &mut[u8], offs: u64) -> Result<usize> {
+        self.inner.read_at(buf, offs)
+    }
+}
+
+impl<T: WriteAt> WriteAt for BlockLimitWrite<T> {
+    fn write_at(&self, buf: &[u8], offs: u64) -> Result<usize> {
+        self.inner.write_at(&buf[..std::cmp::min(buf.len(), self.max_per_block)], offs)
+    }
+}
+
+impl<T: WriteAt> Deref for BlockLimitWrite<T> {
+    type Target = T;
+    fn deref<'a>(&'a self) -> &'a T {
+        &self.inner
+    }
+}
+
+impl<T: WriteAt> DerefMut for BlockLimitWrite<T> {
+    fn deref_mut<'a>(&'a mut self) -> &'a mut T {
+        &mut self.inner
+    }
+}
+
 
 pub struct LockedSeek<T: Seek> {
     inner: Mutex<T>,
@@ -54,12 +128,20 @@ fn do_t_locked_seek() {
     test_impl(at);
 }
 
+#[test]
+fn do_t_block_limit() {
+    use tempfile;
+    let f = tempfile::TempFile::new().unwrap();
+    let at = BlockLimitWrite::new(LockedSeek::from(f), 2);
+    test_impl(at);
+}
+
 #[cfg(test)]
 fn test_impl<T: ReadAt + WriteAt>(at: T) {
     let x = [1u8, 4, 9, 5];
 
     /* write at start */
-    assert_eq!(at.write_at(&x, 0).unwrap(), 4);
+    at.write_all_at(&x, 0).unwrap();
     let mut res = [0u8; 4];
 
     /* read at start */
@@ -71,7 +153,7 @@ fn test_impl<T: ReadAt + WriteAt>(at: T) {
     assert_eq!(&res[..3], &x[1..]);
 
     /* write at middle */
-    assert_eq!(at.write_at(&x, 1).unwrap(), 4);
+    at.write_all_at(&x, 1).unwrap();
 
     assert_eq!(at.read_at(&mut res, 0).unwrap(), 4);
     assert_eq!(&res, &[1u8, 1, 4, 9]);
