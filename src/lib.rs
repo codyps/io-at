@@ -48,13 +48,83 @@ pub struct<T: WriteAt> RateLimitWrite<T> {
     bytes_per_sec : u64;
     inner: T;
 }
+*/
 
-pub struct<T> Take<T> {
-    max_offs: u64;
-    inner: T;
+pub struct Take<T> {
+    max_offs: u64,
+    inner: T,
 }
 
-*/
+impl<T> Take<T> {
+    pub fn new(v: T, max_offs: u64) -> Self {
+        Take { max_offs : max_offs, inner: v }
+    }
+}
+
+impl<T: ReadAt> ReadAt for Take<T> {
+    fn read_at(&self, buf: &mut[u8], offs: u64) -> Result<usize> {
+        let last = std::cmp::min(buf.len() as u64 + offs, self.max_offs);
+        if offs > last {
+            Ok(0)
+        } else {
+            self.inner.read_at(&mut buf[..(last - offs) as usize], offs)
+        }
+    }
+}
+
+impl<T: WriteAt> WriteAt for Take<T> {
+    fn write_at(&self, buf: &[u8], offs: u64) -> Result<usize> {
+        let last = std::cmp::min(buf.len() as u64 + offs, self.max_offs);
+        if offs > last {
+            Ok(0)
+        } else {
+            self.inner.write_at(&buf[..(last - offs) as usize], offs)
+        }
+    }
+}
+
+impl<T> Deref for Take<T> {
+    type Target = T;
+    fn deref<'a>(&'a self) -> &'a T {
+        &self.inner
+    }
+}
+
+impl<T> DerefMut for Take<T> {
+    fn deref_mut<'a>(&'a mut self) -> &'a mut T {
+        &mut self.inner
+    }
+}
+
+#[test]
+fn do_t_take() {
+    use tempfile;
+    let f = tempfile::TempFile::new().unwrap();
+    let at = Take::new(LockedSeek::from(f), 5);
+    test_impl(at);
+
+    /* Partial write */
+    let f = tempfile::TempFile::new().unwrap();
+    let at = Take::new(LockedSeek::from(f), 5);
+    assert_eq!(at.write_at(&[11u8, 2, 3, 4], 4).unwrap(), 1);
+
+    /* Partial read */
+    let mut res = [0u8; 4];
+    assert_eq!(at.read_at(&mut res, 4).unwrap(), 1);
+    assert_eq!(&res[..1], &[11]);
+
+    /* At the end none write */
+    assert_eq!(at.write_at(&[12u8, 13], 5).unwrap(), 0);
+
+    /* At the end none read */
+    assert_eq!(at.read_at(&mut res, 5).unwrap(), 0);
+
+    /* Past the end none write */
+    assert_eq!(at.write_at(&[12u8, 13], 6).unwrap(), 0);
+
+    /* Past the end none read */
+    assert_eq!(at.read_at(&mut res, 6).unwrap(), 0);
+}
 
 pub struct BlockLimitWrite<T: WriteAt> {
     max_per_block: usize,
@@ -92,6 +162,18 @@ impl<T: WriteAt> DerefMut for BlockLimitWrite<T> {
     }
 }
 
+#[test]
+fn do_t_block_limit() {
+    use tempfile;
+    let f = tempfile::TempFile::new().unwrap();
+    let at = BlockLimitWrite::new(LockedSeek::from(f), 2);
+    test_impl(at);
+
+    let f = tempfile::TempFile::new().unwrap();
+    let at = BlockLimitWrite::new(LockedSeek::from(f), 2);
+    assert_eq!(at.write_at(&[1u8, 2, 3], 0).unwrap(), 2);
+}
+
 
 pub struct LockedSeek<T: Seek> {
     inner: Mutex<T>,
@@ -126,18 +208,6 @@ fn do_t_locked_seek() {
     let f = tempfile::TempFile::new().unwrap();
     let at = LockedSeek::from(f);
     test_impl(at);
-}
-
-#[test]
-fn do_t_block_limit() {
-    use tempfile;
-    let f = tempfile::TempFile::new().unwrap();
-    let at = BlockLimitWrite::new(LockedSeek::from(f), 2);
-    test_impl(at);
-
-    let f = tempfile::TempFile::new().unwrap();
-    let at = BlockLimitWrite::new(LockedSeek::from(f), 2);
-    assert_eq!(at.write_at(&[1u8, 2, 3], 0).unwrap(), 2);
 }
 
 #[cfg(test)]
