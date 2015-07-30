@@ -245,7 +245,12 @@ pub mod os {
         use std::io;
         use std::os::unix::io::AsRawFd;
 
-        pub struct IoAtRaw<S: AsRawFd>(pub S);
+        pub struct IoAtRaw<S: AsRawFd>(S);
+        impl<S: AsRawFd> From<S> for IoAtRaw<S> {
+            fn from(v: S) -> Self {
+                IoAtRaw(v)
+            }
+        }
 
         fn nix_to_io<T>(x: nix::Result<T>) -> io::Result<T> {
             x.map_err(|v| match v {
@@ -283,7 +288,7 @@ pub mod os {
         fn do_t() {
             use tempfile;
             let f = tempfile::TempFile::new().unwrap();
-            let at = IoAtRaw(f);
+            let at = IoAtRaw::from(f);
             super::super::test_impl(at);
         }
     }
