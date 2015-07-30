@@ -134,6 +134,10 @@ fn do_t_block_limit() {
     let f = tempfile::TempFile::new().unwrap();
     let at = BlockLimitWrite::new(LockedSeek::from(f), 2);
     test_impl(at);
+
+    let f = tempfile::TempFile::new().unwrap();
+    let at = BlockLimitWrite::new(LockedSeek::from(f), 2);
+    assert_eq!(at.write_at(&[1u8, 2, 3], 0).unwrap(), 2);
 }
 
 #[cfg(test)]
