@@ -7,6 +7,7 @@ extern crate tempfile;
 
 pub use std::io::Result;
 
+use std::convert::From;
 use std::sync::Mutex;
 use std::io::{SeekFrom, Seek, Read, Write};
 
@@ -22,8 +23,9 @@ pub struct LockedSeek<T: Seek> {
     inner: Mutex<T>,
 }
 
-impl<T: Seek> LockedSeek<T> {
-    pub fn new(v: T) -> LockedSeek<T> {
+/* FIXME: only allow for if T is also Read || Write */
+impl<T: Seek> From<T> for LockedSeek<T> {
+    fn from(v: T) -> Self {
         LockedSeek { inner: Mutex::new(v) }
     }
 }
@@ -48,7 +50,7 @@ impl<T: Seek + Write> WriteAt for LockedSeek<T> {
 fn do_t_locked_seek() {
     use tempfile;
     let f = tempfile::TempFile::new().unwrap();
-    let at = LockedSeek::new(f);
+    let at = LockedSeek::from(f);
     test_impl(at);
 }
 
