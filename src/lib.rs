@@ -50,6 +50,50 @@ pub struct<T: WriteAt> RateLimitWrite<T> {
 }
 */
 
+pub struct Cursor<T> {
+    offs: u64,
+    inner: T,
+}
+
+impl<T> Cursor<T> {
+    pub fn new(v: T, first_offs: u64) -> Self {
+        Cursor { inner: v, offs: first_offs }
+    }
+}
+
+impl<T: WriteAt> Write for Cursor<T> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        let r = self.inner.write_at(buf, self.offs);
+        if let Ok(v) = r {
+            self.offs += v as u64;
+        }
+        r
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl<T: ReadAt> Read for Cursor<T> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let r = self.inner.read_at(buf, self.offs);
+        if let Ok(v) = r {
+            self.offs += v as u64;
+        }
+        r
+    }
+}
+
+#[test]
+fn do_t_cursor() {
+    use tempfile;
+    let f = tempfile::TempFile::new().unwrap();
+    let at = Cursor::new(LockedSeek::from(f), 5);
+
+    /* TODO: test it */
+}
+
 pub struct Take<T> {
     max_offs: u64,
     inner: T,
