@@ -105,6 +105,10 @@ impl<T> Take<T> {
     pub fn new(v: T, max_offs: u64) -> Self {
         Take { max_offs : max_offs, inner: v }
     }
+
+    pub fn len(&self) -> u64 {
+        self.max_offs
+    }
 }
 
 impl<T: ReadAt> ReadAt for Take<T> {
