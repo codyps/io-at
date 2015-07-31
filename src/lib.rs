@@ -221,7 +221,7 @@ fn do_t_block_limit() {
     assert_eq!(at.write_at(&[1u8, 2, 3], 0).unwrap(), 2);
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub struct LockedSeek<T: Seek> {
     inner: Mutex<T>,
 }
