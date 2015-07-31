@@ -50,6 +50,7 @@ pub struct<T: WriteAt> RateLimitWrite<T> {
 }
 */
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct Cursor<T> {
     offs: u64,
     inner: T,
@@ -94,6 +95,7 @@ fn do_t_cursor() {
     /* TODO: test it */
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct Take<T> {
     max_offs: u64,
     inner: T,
@@ -170,6 +172,7 @@ fn do_t_take() {
     assert_eq!(at.read_at(&mut res, 6).unwrap(), 0);
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct BlockLimitWrite<T: WriteAt> {
     max_per_block: usize,
     inner: T,
@@ -218,7 +221,7 @@ fn do_t_block_limit() {
     assert_eq!(at.write_at(&[1u8, 2, 3], 0).unwrap(), 2);
 }
 
-
+#[derive(Debug, Eq, PartialEq)]
 pub struct LockedSeek<T: Seek> {
     inner: Mutex<T>,
 }
@@ -289,6 +292,7 @@ pub mod os {
         use std::io;
         use std::os::unix::io::AsRawFd;
 
+        #[derive(Debug, Eq, PartialEq)]
         pub struct IoAtRaw<S: AsRawFd>(S);
         impl<S: AsRawFd> From<S> for IoAtRaw<S> {
             fn from(v: S) -> Self {
