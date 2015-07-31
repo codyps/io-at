@@ -1,6 +1,6 @@
 [package]
 name = "io-at"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Cody P Schafer <dev@codyps.com>"]
 license = "MIT"
 repository = "https://github.com/jmesmon/io-at"
