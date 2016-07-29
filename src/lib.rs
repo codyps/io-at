@@ -10,15 +10,24 @@ use std::convert::From;
 use std::sync::Mutex;
 use std::io::{SeekFrom, Seek, Read, Write};
 
+/**
+ * Read data at an offset
+ *
+ * Note that compared to Read::read, ReadAt::read_at does not borrow T mutably as it does not need
+ * to modify an internal cursor.
+ */
 pub trait ReadAt {
     fn read_at(&self, buf: &mut[u8], offs: u64) -> Result<usize>;
 }
 
+/**
+ * Write data at an offset
+ */
 pub trait WriteAt {
-    fn write_at(&self, buf: &[u8], offs: u64) -> Result<usize>;
+    fn write_at(&mut self, buf: &[u8], offs: u64) -> Result<usize>;
 
     /* XXX: this impl is very similar to Write::write_all, is there some way to generalize? */
-    fn write_all_at(&self, mut buf: &[u8], mut offs: u64) -> Result<()> {
+    fn write_all_at(&mut self, mut buf: &[u8], mut offs: u64) -> Result<()> {
         use std::io::{Error, ErrorKind};
         while !buf.is_empty() {
             match self.write_at(buf, offs) {
@@ -48,6 +57,10 @@ pub struct<T: WriteAt> RateLimitWrite<T> {
 }
 */
 
+/**
+ * Adapt a WriteAt and/or ReadAt to a Write and/or Read by tracking a single internal offset and
+ * modifying it.
+ */
 #[derive(Debug, Eq, PartialEq)]
 pub struct Cursor<T> {
     offs: u64,
@@ -93,6 +106,12 @@ fn do_t_cursor() {
     /* TODO: test it */
 }
 
+/**
+ * Limit the maximum offset of a WriteAt and/or ReadAt.
+ *
+ * This can be useful when trying to simulate a fixed size item (like a block device) with a normal
+ * file.
+ */
 #[derive(Debug, Eq, PartialEq)]
 pub struct Take<T> {
     max_offs: u64,
@@ -121,7 +140,7 @@ impl<T: ReadAt> ReadAt for Take<T> {
 }
 
 impl<T: WriteAt> WriteAt for Take<T> {
-    fn write_at(&self, buf: &[u8], offs: u64) -> Result<usize> {
+    fn write_at(&mut self, buf: &[u8], offs: u64) -> Result<usize> {
         let last = std::cmp::min(buf.len() as u64 + offs, self.max_offs);
         if offs > last {
             Ok(0)
@@ -153,7 +172,7 @@ fn do_t_take() {
 
     /* Partial write */
     let f = tempfile::tempfile().unwrap();
-    let at = Take::new(LockedSeek::from(f), 5);
+    let mut at = Take::new(LockedSeek::from(f), 5);
     assert_eq!(at.write_at(&[11u8, 2, 3, 4], 4).unwrap(), 1);
 
     /* Partial read */
@@ -174,6 +193,11 @@ fn do_t_take() {
     assert_eq!(at.read_at(&mut res, 6).unwrap(), 0);
 }
 
+/**
+ * Limit the amount of data accepted in a single call to WriteAt (ReadAt is unaffected)
+ *
+ * This is primarily useful for testing that handling of incomplete writes work properly.
+ */
 #[derive(Debug, Eq, PartialEq)]
 pub struct BlockLimitWrite<T: WriteAt> {
     max_per_block: usize,
@@ -193,7 +217,7 @@ impl<T: WriteAt + ReadAt> ReadAt for BlockLimitWrite<T> {
 }
 
 impl<T: WriteAt> WriteAt for BlockLimitWrite<T> {
-    fn write_at(&self, buf: &[u8], offs: u64) -> Result<usize> {
+    fn write_at(&mut self, buf: &[u8], offs: u64) -> Result<usize> {
         self.inner.write_at(&buf[..std::cmp::min(buf.len(), self.max_per_block)], offs)
     }
 }
@@ -219,10 +243,16 @@ fn do_t_block_limit() {
     test_impl(at);
 
     let f = tempfile::tempfile().unwrap();
-    let at = BlockLimitWrite::new(LockedSeek::from(f), 2);
+    let mut at = BlockLimitWrite::new(LockedSeek::from(f), 2);
     assert_eq!(at.write_at(&[1u8, 2, 3], 0).unwrap(), 2);
 }
 
+/**
+ * Allow a Seek + (Read and/or Write) to impliment WriteAt and/or ReadAt
+ *
+ * While in most cases more specific adaptations will be more efficient, this allows any Seek to
+ * impliment WriteAt or ReadAt with not additional restrictions.
+ */
 pub struct LockedSeek<T: Seek> {
     inner: Mutex<T>,
 }
@@ -243,7 +273,7 @@ impl<T: Seek + Read> ReadAt for LockedSeek<T> {
 }
 
 impl<T: Seek + Write> WriteAt for LockedSeek<T> {
-    fn write_at(&self, buf: &[u8], offs: u64) -> Result<usize> {
+    fn write_at(&mut self, buf: &[u8], offs: u64) -> Result<usize> {
         let mut f = self.inner.lock().unwrap();
         try!(f.seek(SeekFrom::Start(offs)));
         f.write(buf)
@@ -259,7 +289,7 @@ fn do_t_locked_seek() {
 }
 
 #[cfg(test)]
-fn test_impl<T: ReadAt + WriteAt>(at: T) {
+fn test_impl<T: ReadAt + WriteAt>(mut at: T) {
     let x = [1u8, 4, 9, 5];
 
     /* write at start */
@@ -284,85 +314,9 @@ fn test_impl<T: ReadAt + WriteAt>(at: T) {
     assert_eq!(&res[..1], &[5u8]);
 }
 
+/**
+ * OS specific implimentations of WriteAt and/or ReadAt
+ */
 pub mod os {
-    #[cfg(unix)]
-    pub mod unix {
-        use libc;
-        use super::super::*;
-        use std::ops::{Deref, DerefMut};
-        use std::io;
-        use std::os::unix::io::AsRawFd;
-
-        mod ffi {
-            use libc;
-            extern "C" {
-                pub fn pread(fd: libc::c_int, buf: *mut libc::c_void, len: libc::size_t, offs: libc::off_t) -> libc::ssize_t;
-                pub fn pwrite(fd: libc::c_int, buf: *const libc::c_void, len: libc::size_t, offs: libc::off_t) -> libc::ssize_t;
-            }
-        }
-
-        /* ideally this would generalize over any return value we can ask "is non-negative", but
-         * there isn't a built in trait for that and defining it ourselves would be work
-         */
-        fn into_io_result(r: libc::ssize_t) -> Result<usize>
-        {
-            if r >= 0 {
-                Ok(r as usize)
-            } else {
-                Err(io::Error::last_os_error())
-            }
-        }
-
-        fn pread<F: AsRawFd>(fd: &F, buf: &mut [u8], offs: libc::off_t) -> Result<usize>
-        {
-            into_io_result(unsafe { ffi::pread(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, buf.len(), offs) })
-        }
-
-        fn pwrite<F: AsRawFd>(fd: &F, buf: &[u8], offs: libc::off_t) -> Result<usize>
-        {
-            into_io_result(unsafe { ffi::pwrite(fd.as_raw_fd(), buf.as_ptr() as *const _, buf.len(), offs) })
-        }
-
-
-        #[derive(Debug, Eq, PartialEq)]
-        pub struct IoAtRaw<S: AsRawFd>(S);
-        impl<S: AsRawFd> From<S> for IoAtRaw<S> {
-            fn from(v: S) -> Self {
-                IoAtRaw(v)
-            }
-        }
-
-        impl<S: AsRawFd> ReadAt for IoAtRaw<S> {
-            fn read_at(&self, buf: &mut[u8], offs: u64) -> Result<usize> {
-                pread(&self.0, buf, offs as libc::off_t)
-            }
-        }
-
-        impl<S: AsRawFd> WriteAt for IoAtRaw<S> {
-            fn write_at(&self, buf: &[u8], offs: u64) -> Result<usize> {
-                pwrite(&self.0, buf, offs as libc::off_t)
-            }
-        }
-
-        impl<T: AsRawFd> Deref for IoAtRaw<T> {
-            type Target = T;
-            fn deref<'a>(&'a self) -> &'a T {
-                &self.0
-            }
-        }
-
-        impl<T: AsRawFd> DerefMut for IoAtRaw<T> {
-            fn deref_mut<'a>(&'a mut self) -> &'a mut T {
-                &mut self.0
-            }
-        }
-
-        #[test]
-        fn do_t() {
-            use tempfile;
-            let f = tempfile::tempfile().unwrap();
-            let at = IoAtRaw::from(f);
-            super::super::test_impl(at);
-        }
-    }
+    pub mod unix;
 }
