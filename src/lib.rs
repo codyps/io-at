@@ -1,5 +1,3 @@
-extern crate libc;
-
 #[cfg(test)]
 extern crate tempfile;
 

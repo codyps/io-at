@@ -1,12 +1,12 @@
 #![cfg(unix)]
-use libc;
+extern crate libc;
 use super::super::*;
 use std::ops::{Deref, DerefMut};
 use std::io;
 use std::os::unix::io::AsRawFd;
 
 mod ffi {
-    use libc;
+    use super::libc;
     extern "C" {
         pub fn pread(fd: libc::c_int, buf: *mut libc::c_void, len: libc::size_t, offs: libc::off_t) -> libc::ssize_t;
         pub fn pwrite(fd: libc::c_int, buf: *const libc::c_void, len: libc::size_t, offs: libc::off_t) -> libc::ssize_t;

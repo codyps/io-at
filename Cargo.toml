@@ -7,7 +7,7 @@ repository = "https://github.com/jmesmon/io-at"
 description = "Traits and wapper type implimenting Read and Write with offsets"
 keywords = [ "io", "offset", "at" ]
 
-[dependencies]
+[target.'cfg(unix)'.dependencies]
 libc = "*"
 
 [dev-dependencies]
