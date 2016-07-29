@@ -1,6 +1,4 @@
-// TODO: we don't need most of nix, pull it out and kill a dep
-extern crate nix;
-extern crate libc; // just for offs_t
+extern crate libc;
 
 #[cfg(test)]
 extern crate tempfile;
@@ -89,8 +87,8 @@ impl<T: ReadAt> Read for Cursor<T> {
 #[test]
 fn do_t_cursor() {
     use tempfile;
-    let f = tempfile::TempFile::new().unwrap();
-    let at = Cursor::new(LockedSeek::from(f), 5);
+    let f = tempfile::tempfile().unwrap();
+    let _at = Cursor::new(LockedSeek::from(f), 5);
 
     /* TODO: test it */
 }
@@ -149,12 +147,12 @@ impl<T> DerefMut for Take<T> {
 #[test]
 fn do_t_take() {
     use tempfile;
-    let f = tempfile::TempFile::new().unwrap();
+    let f = tempfile::tempfile().unwrap();
     let at = Take::new(LockedSeek::from(f), 5);
     test_impl(at);
 
     /* Partial write */
-    let f = tempfile::TempFile::new().unwrap();
+    let f = tempfile::tempfile().unwrap();
     let at = Take::new(LockedSeek::from(f), 5);
     assert_eq!(at.write_at(&[11u8, 2, 3, 4], 4).unwrap(), 1);
 
@@ -216,11 +214,11 @@ impl<T: WriteAt> DerefMut for BlockLimitWrite<T> {
 #[test]
 fn do_t_block_limit() {
     use tempfile;
-    let f = tempfile::TempFile::new().unwrap();
+    let f = tempfile::tempfile().unwrap();
     let at = BlockLimitWrite::new(LockedSeek::from(f), 2);
     test_impl(at);
 
-    let f = tempfile::TempFile::new().unwrap();
+    let f = tempfile::tempfile().unwrap();
     let at = BlockLimitWrite::new(LockedSeek::from(f), 2);
     assert_eq!(at.write_at(&[1u8, 2, 3], 0).unwrap(), 2);
 }
@@ -255,7 +253,7 @@ impl<T: Seek + Write> WriteAt for LockedSeek<T> {
 #[test]
 fn do_t_locked_seek() {
     use tempfile;
-    let f = tempfile::TempFile::new().unwrap();
+    let f = tempfile::tempfile().unwrap();
     let at = LockedSeek::from(f);
     test_impl(at);
 }
@@ -287,13 +285,44 @@ fn test_impl<T: ReadAt + WriteAt>(at: T) {
 }
 
 pub mod os {
+    #[cfg(unix)]
     pub mod unix {
-        use nix;
         use libc;
         use super::super::*;
         use std::ops::{Deref, DerefMut};
         use std::io;
         use std::os::unix::io::AsRawFd;
+
+        mod ffi {
+            use libc;
+            extern "C" {
+                pub fn pread(fd: libc::c_int, buf: *mut libc::c_void, len: libc::size_t, offs: libc::off_t) -> libc::ssize_t;
+                pub fn pwrite(fd: libc::c_int, buf: *const libc::c_void, len: libc::size_t, offs: libc::off_t) -> libc::ssize_t;
+            }
+        }
+
+        /* ideally this would generalize over any return value we can ask "is non-negative", but
+         * there isn't a built in trait for that and defining it ourselves would be work
+         */
+        fn into_io_result(r: libc::ssize_t) -> Result<usize>
+        {
+            if r >= 0 {
+                Ok(r as usize)
+            } else {
+                Err(io::Error::last_os_error())
+            }
+        }
+
+        fn pread<F: AsRawFd>(fd: &F, buf: &mut [u8], offs: libc::off_t) -> Result<usize>
+        {
+            into_io_result(unsafe { ffi::pread(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, buf.len(), offs) })
+        }
+
+        fn pwrite<F: AsRawFd>(fd: &F, buf: &[u8], offs: libc::off_t) -> Result<usize>
+        {
+            into_io_result(unsafe { ffi::pwrite(fd.as_raw_fd(), buf.as_ptr() as *const _, buf.len(), offs) })
+        }
+
 
         #[derive(Debug, Eq, PartialEq)]
         pub struct IoAtRaw<S: AsRawFd>(S);
@@ -303,22 +332,15 @@ pub mod os {
             }
         }
 
-        fn nix_to_io<T>(x: nix::Result<T>) -> io::Result<T> {
-            x.map_err(|v| match v {
-                nix::Error::Sys(errno) => io::Error::from_raw_os_error(errno as i32),
-                nix::Error::InvalidPath => io::Error::new(io::ErrorKind::InvalidInput, "InvalidPath"),
-            })
-        }
-
         impl<S: AsRawFd> ReadAt for IoAtRaw<S> {
             fn read_at(&self, buf: &mut[u8], offs: u64) -> Result<usize> {
-                nix_to_io(nix::sys::uio::pread(self.0.as_raw_fd(), buf, offs as libc::off_t))
+                pread(&self.0, buf, offs as libc::off_t)
             }
         }
 
         impl<S: AsRawFd> WriteAt for IoAtRaw<S> {
             fn write_at(&self, buf: &[u8], offs: u64) -> Result<usize> {
-                nix_to_io(nix::sys::uio::pwrite(self.0.as_raw_fd(), buf, offs as libc::off_t))
+                pwrite(&self.0, buf, offs as libc::off_t)
             }
         }
 
@@ -338,7 +360,7 @@ pub mod os {
         #[test]
         fn do_t() {
             use tempfile;
-            let f = tempfile::TempFile::new().unwrap();
+            let f = tempfile::tempfile().unwrap();
             let at = IoAtRaw::from(f);
             super::super::test_impl(at);
         }

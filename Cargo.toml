@@ -1,6 +1,6 @@
 [package]
 name = "io-at"
-version = "0.1.7"
+version = "0.1.8"
 authors = ["Cody P Schafer <dev@codyps.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/jmesmon/io-at"
@@ -9,8 +9,6 @@ keywords = [ "io", "offset", "at" ]
 
 [dependencies]
 libc = "*"
-# only needed on unix, but cargo doesn't have a way for us to say that
-nix = "*"
 
 [dev-dependencies]
 tempfile = "*"
