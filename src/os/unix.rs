@@ -1,4 +1,3 @@
-#![cfg(unix)]
 extern crate libc;
 use super::super::*;
 use std::ops::{Deref, DerefMut};
