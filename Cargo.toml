@@ -1,18 +1,18 @@
 [package]
 name = "io-at"
-version = "0.1.8"
+version = "0.2.0"
 authors = ["Cody P Schafer <dev@codyps.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/jmesmon/io-at"
 description = "Traits and wapper type implimenting Read and Write with offsets"
-keywords = [ "io", "offset", "at" ]
+keywords = [ "io", "offset", "at", "position" ]
 
 [target.'cfg(unix)'.dependencies]
-libc = "*"
+libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
-winapi = "*"
-kernel32-sys = "*"
+winapi = "0.2"
+kernel32-sys = "0.2"
 
 [dev-dependencies]
-tempfile = "*"
+tempfile = "2"
