@@ -4,7 +4,7 @@ version = "0.3.0"
 authors = ["Cody P Schafer <dev@codyps.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/jmesmon/io-at"
-description = "Traits and wapper type implimenting Read and Write with offsets"
+description = "Traits for Read and Write with offsets, wrapper types & core impls"
 keywords = [ "io", "offset", "at", "position" ]
 include = [ "Cargo.toml", "**/*.rs" ]
 
