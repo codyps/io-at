@@ -1,6 +1,6 @@
 # io-at
 
-Get information about the build from environment variables
+Read and write at offsets (ie: pread & pwrite)
 
 [![Documentation (unix)](https://img.shields.io/badge/documentation-latest-brightgreen.svg?style=flat)](http://codyps.com/docs/io-at/x86_64-unknown-linux-gnu/stable/io_at/index.html)
 [![Crates.io](https://img.shields.io/crates/v/io-at.svg?maxAge=2592000)](https://crates.io/crates/io-at)
