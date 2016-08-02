@@ -10,5 +10,9 @@ keywords = [ "io", "offset", "at" ]
 [target.'cfg(unix)'.dependencies]
 libc = "*"
 
+[target.'cfg(windows)'.dependencies]
+winapi = "*"
+kernel32-sys = "*"
+
 [dev-dependencies]
 tempfile = "*"
