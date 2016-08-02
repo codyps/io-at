@@ -299,7 +299,7 @@ fn test_impl<T: ReadAt + WriteAt>(mut at: T) {
     assert_eq!(&res, &x);
 
     /* read at middle */
-    assert_eq!(at.read_at(&mut res, 1).unwrap(), 3);
+    assert_eq!(at.read_at(&mut res[0..3], 1).unwrap(), 3);
     assert_eq!(&res[..3], &x[1..]);
 
     /* write at middle */
@@ -308,7 +308,7 @@ fn test_impl<T: ReadAt + WriteAt>(mut at: T) {
     assert_eq!(at.read_at(&mut res, 0).unwrap(), 4);
     assert_eq!(&res, &[1u8, 1, 4, 9]);
 
-    assert_eq!(at.read_at(&mut res, 4).unwrap(), 1);
+    assert_eq!(at.read_at(&mut res[0..1], 4).unwrap(), 1);
     assert_eq!(&res[..1], &[5u8]);
 }
 
@@ -317,3 +317,5 @@ fn test_impl<T: ReadAt + WriteAt>(mut at: T) {
  */
 #[cfg(any(unix, windows))]
 pub mod os;
+
+pub mod slice;
