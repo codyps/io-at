@@ -1,8 +1,7 @@
 extern crate libc;
 use super::super::*;
-use std::ops::{Deref, DerefMut};
 use std::io;
-use std::os::unix::io::AsRawFd;
+pub use std::os::unix::io::AsRawFd as AsRaw;
 
 mod ffi {
     use super::libc;
@@ -24,54 +23,12 @@ fn into_io_result(r: libc::ssize_t) -> Result<usize>
     }
 }
 
-fn pread<F: AsRawFd>(fd: &F, buf: &mut [u8], offs: libc::off_t) -> Result<usize>
+pub fn pread<F: AsRaw>(fd: &F, buf: &mut [u8], offs: u64) -> Result<usize>
 {
-    into_io_result(unsafe { ffi::pread(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, buf.len(), offs) })
+    into_io_result(unsafe { ffi::pread(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, buf.len(), offs as libc::off_t) })
 }
 
-fn pwrite<F: AsRawFd>(fd: &F, buf: &[u8], offs: libc::off_t) -> Result<usize>
+pub fn pwrite<F: AsRaw>(fd: &F, buf: &[u8], offs: u64) -> Result<usize>
 {
-    into_io_result(unsafe { ffi::pwrite(fd.as_raw_fd(), buf.as_ptr() as *const _, buf.len(), offs) })
-}
-
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct IoAtRaw<S: AsRawFd>(S);
-impl<S: AsRawFd> From<S> for IoAtRaw<S> {
-    fn from(v: S) -> Self {
-        IoAtRaw(v)
-    }
-}
-
-impl<S: AsRawFd> ReadAt for IoAtRaw<S> {
-    fn read_at(&self, buf: &mut[u8], offs: u64) -> Result<usize> {
-        pread(&self.0, buf, offs as libc::off_t)
-    }
-}
-
-impl<S: AsRawFd> WriteAt for IoAtRaw<S> {
-    fn write_at(&mut self, buf: &[u8], offs: u64) -> Result<usize> {
-        pwrite(&self.0, buf, offs as libc::off_t)
-    }
-}
-
-impl<T: AsRawFd> Deref for IoAtRaw<T> {
-    type Target = T;
-    fn deref<'a>(&'a self) -> &'a T {
-        &self.0
-    }
-}
-
-impl<T: AsRawFd> DerefMut for IoAtRaw<T> {
-    fn deref_mut<'a>(&'a mut self) -> &'a mut T {
-        &mut self.0
-    }
-}
-
-#[test]
-fn do_t() {
-    use tempfile;
-    let f = tempfile::tempfile().unwrap();
-    let at = IoAtRaw::from(f);
-    super::super::test_impl(at);
+    into_io_result(unsafe { ffi::pwrite(fd.as_raw_fd(), buf.as_ptr() as *const _, buf.len(), offs as libc::off_t) })
 }

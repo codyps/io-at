@@ -315,9 +315,5 @@ fn test_impl<T: ReadAt + WriteAt>(mut at: T) {
 /**
  * OS specific implimentations of WriteAt and/or ReadAt
  */
-pub mod os {
-    #[cfg(unix)]
-    pub mod unix;
-    #[cfg(windows)]
-    pub mod windows;
-}
+#[cfg(any(unix, windows))]
+pub mod os;
