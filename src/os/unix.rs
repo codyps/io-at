@@ -1,5 +1,4 @@
 extern crate libc;
-extern crate posix_sys;
 use super::super::*;
 use std::io;
 pub use std::os::unix::io::AsRawFd as AsRaw;
@@ -18,10 +17,10 @@ fn into_io_result(r: libc::ssize_t) -> Result<usize>
 
 pub fn pread<F: AsRaw>(fd: &F, buf: &mut [u8], offs: u64) -> Result<usize>
 {
-    into_io_result(unsafe { posix_sys::pread(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, buf.len(), offs as libc::off_t) })
+    into_io_result(unsafe { libc::pread(fd.as_raw_fd(), buf.as_mut_ptr() as *mut _, buf.len(), offs as libc::off_t) })
 }
 
 pub fn pwrite<F: AsRaw>(fd: &F, buf: &[u8], offs: u64) -> Result<usize>
 {
-    into_io_result(unsafe { posix_sys::pwrite(fd.as_raw_fd(), buf.as_ptr() as *const _, buf.len(), offs as libc::off_t) })
+    into_io_result(unsafe { libc::pwrite(fd.as_raw_fd(), buf.as_ptr() as *const _, buf.len(), offs as libc::off_t) })
 }
