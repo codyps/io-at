@@ -8,6 +8,9 @@ use std::convert::From;
 use std::sync::Mutex;
 use std::io::{SeekFrom, Seek, Read, Write};
 
+#[macro_use]
+pub mod macros;
+
 /**
  * Read data at an offset
  *

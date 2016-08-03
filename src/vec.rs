@@ -59,3 +59,11 @@ fn do_t() {
     let x = vec![];
     super::test_impl(x);
 }
+
+impl_ref_io_at!{Vec<u8>}
+
+#[test]
+fn ref_vec() {
+    let mut x = vec![];
+    super::test_impl(&mut x);
+}
