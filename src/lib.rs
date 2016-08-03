@@ -162,15 +162,16 @@ impl<T> DerefMut for Take<T> {
 }
 
 #[test]
-fn do_t_take() {
-    use tempfile;
-    let f = tempfile::tempfile().unwrap();
-    let at = Take::new(LockedSeek::from(f), 5);
+fn take_test_impl() {
+    let f = vec![];
+    let at = Take::new(f, 100);
     test_impl(at);
+}
 
+#[test]
+fn take_test_specifics() {
     /* Partial write */
-    let f = tempfile::tempfile().unwrap();
-    let mut at = Take::new(LockedSeek::from(f), 5);
+    let mut at = Take::new(vec![], 5);
     assert_eq!(at.write_at(&[11u8, 2, 3, 4], 4).unwrap(), 1);
 
     /* Partial read */
@@ -310,6 +311,15 @@ fn test_impl<T: ReadAt + WriteAt>(mut at: T) {
 
     assert_eq!(at.read_at(&mut res[0..1], 4).unwrap(), 1);
     assert_eq!(&res[..1], &[5u8]);
+
+    at.write_all_at(&x, 10).unwrap();
+    assert_eq!(at.read_at(&mut res, 10).unwrap(), 4);
+    assert_eq!(&res, &[1u8, 4, 9, 5]);
+
+    at.write_all_at(&x, 9).unwrap();
+    assert_eq!(at.read_at(&mut res, 9).unwrap(), 4);
+    assert_eq!(&res, &[1u8, 4, 9, 5]);
+
 }
 
 /**
@@ -318,4 +328,5 @@ fn test_impl<T: ReadAt + WriteAt>(mut at: T) {
 #[cfg(any(unix, windows))]
 pub mod os;
 
-pub mod slice;
+mod slice;
+mod vec;
