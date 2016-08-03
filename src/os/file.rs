@@ -21,3 +21,4 @@ fn do_t() {
     super::super::test_impl(f);
 }
 
+impl_ref_io_at!{File}
