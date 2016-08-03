@@ -7,6 +7,7 @@ repository = "https://github.com/jmesmon/io-at"
 description = "Traits for Read and Write with offsets, wrapper types & core impls"
 keywords = [ "io", "offset", "at", "position" ]
 include = [ "Cargo.toml", "**/*.rs" ]
+documentation = "http://codyps.com/docs/io-at/x86_64-unknown-linux-gnu/stable/io_at/index.html"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
