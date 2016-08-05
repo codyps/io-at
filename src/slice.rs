@@ -13,35 +13,25 @@ fn as_usize(v: u64) -> usize {
     }
 }
 
-fn ra(src: &[u8], buf: &mut[u8], offs: u64) -> Result<usize> {
-    let offs = as_usize(offs);
-    if offs > src.len() {
-        return Ok(0);
-    }
-
-    let r = &src[offs..];
-    let l = cmp::min(buf.len(), r.len());
-    let r = &r[..l];
-    let buf = &mut buf[..l];
-
-    buf.copy_from_slice(r);
-    Ok(l)
-}
-
-/* TODO: eliminate duplication here */
-impl<'a> ReadAt for &'a mut [u8] {
+impl ReadAt for [u8] {
     fn read_at(&self, buf: &mut[u8], offs: u64) -> Result<usize> {
-        ra(self, buf, offs)
+        let src = self;
+        let offs = as_usize(offs);
+        if offs > src.len() {
+            return Ok(0);
+        }
+
+        let r = &src[offs..];
+        let l = cmp::min(buf.len(), r.len());
+        let r = &r[..l];
+        let buf = &mut buf[..l];
+
+        buf.copy_from_slice(r);
+        Ok(l)
     }
 }
 
-impl<'a> ReadAt for &'a [u8] {
-    fn read_at(&self, buf: &mut[u8], offs: u64) -> Result<usize> {
-        ra(self, buf, offs)
-    }
-}
-
-impl<'a> WriteAt for &'a mut [u8] {
+impl WriteAt for [u8] {
     fn write_at(&mut self, buf: &[u8], offs: u64) -> Result<usize> {
         let offs = as_usize(offs);
         if offs > self.len() {
