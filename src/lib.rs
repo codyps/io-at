@@ -287,6 +287,65 @@ fn do_t_locked_seek() {
     test_impl(at);
 }
 
+/// Use an offset as the base for all ReadAt and WriteAt accesses. Where `Take` modifies then end,
+/// `At` modifies the start.
+#[derive(Debug, Eq, PartialEq)]
+pub struct At<T> {
+    offs: u64,
+    inner: T,
+}
+
+impl<T> At<T> {
+    pub fn new(v: T, offs: u64) -> Self {
+        At { offs : offs, inner: v }
+    }
+}
+
+impl<T: ReadAt> ReadAt for At<T> {
+    fn read_at(&self, buf: &mut[u8], offs: u64) -> Result<usize> {
+        self.inner.read_at(buf, offs + self.offs)
+    }
+}
+
+impl<T: WriteAt> WriteAt for At<T> {
+    fn write_at(&mut self, buf: &[u8], offs: u64) -> Result<usize> {
+        self.inner.write_at(buf, offs + self.offs)
+    }
+}
+
+impl<T> Deref for At<T> {
+    type Target = T;
+    fn deref<'a>(&'a self) -> &'a T {
+        &self.inner
+    }
+}
+
+impl<T> DerefMut for At<T> {
+    fn deref_mut<'a>(&'a mut self) -> &'a mut T {
+        &mut self.inner
+    }
+}
+
+#[test]
+fn at_test_impl() {
+    let mut f = vec![1u8, 1];
+    {
+        let mut at = At::new(&mut f, 1);
+        test_impl(&mut at);
+    }
+
+    f[0] = 1;
+    f[1] = 1;
+
+    {
+        let mut at = At::new(&mut f, 1);
+        at.write_at(&[5], 0).unwrap();
+    }
+
+    assert_eq!(f[0], 1);
+    assert_eq!(f[1], 5);
+}
+
 #[cfg(test)]
 fn test_impl<T: ReadAt + WriteAt>(mut at: T) {
     let x = [1u8, 4, 9, 5];
