@@ -17,4 +17,4 @@ winapi = "0.2"
 kernel32-sys = "0.2"
 
 [dev-dependencies]
-tempfile = "2"
+tempfile = "3"
