@@ -13,7 +13,7 @@ documentation = "http://codyps.com/docs/io-at/x86_64-unknown-linux-gnu/stable/io
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
-winapi = "0.2"
+winapi = "0.3"
 kernel32-sys = "0.2"
 
 [dev-dependencies]
